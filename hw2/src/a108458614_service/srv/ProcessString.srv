@@ -1,0 +1,4 @@
+string input
+---
+string output_str
+float64 output_duration
