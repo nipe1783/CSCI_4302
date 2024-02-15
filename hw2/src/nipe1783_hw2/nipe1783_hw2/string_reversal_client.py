@@ -1,7 +1,7 @@
 import sys
 import rclpy
 from rclpy.node import Node
-from a108458614_service.srv import ProcessString
+from nipe1783_service.srv import ProcessString
 import matplotlib.pyplot as plt
 import time
 
@@ -19,6 +19,7 @@ class StringReversalClient(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    print("Starting client...")
     string_reversal_client = StringReversalClient()
 
     adjusted_rtts = []
@@ -37,7 +38,7 @@ def main(args=None):
             response = string_reversal_client.future.result()
             print('response: ', response.output_str, response.output_duration)
             service_time = response.output_duration
-            adjusted_rtt = service_time
+            adjusted_rtt = rtt - service_time
             adjusted_rtts.append(adjusted_rtt)
         except Exception as e:
             string_reversal_client.get_logger().info(f'Service call failed: {e}')

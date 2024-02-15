@@ -6,7 +6,7 @@ cd ~/dev/CSCI_4302/hw2
 colcon build
 source /opt/ros/foxy/setup.bash
 source ~/dev/CSCI_4302/hw2/install/setup.bash
-ros2 run a108458614_hw2 service
+ros2 run nipe1783_hw2 service
 ```
 
 ```bash
@@ -14,7 +14,7 @@ cd ~/dev/CSCI_4302/hw2
 colcon build
 source /opt/ros/foxy/setup.bash
 source ~/dev/CSCI_4302/hw2/install/setup.bash
-ros2 run a108458614_hw2 client
+ros2 run nipe1783_hw2 client
 ``
 
 ```bash
@@ -22,7 +22,7 @@ cd ~/dev/CSCI_4302/hw2
 colcon build
 source /opt/ros/foxy/setup.bash
 source ~/dev/CSCI_4302/hw2/install/setup.bash
-ros2 run a108458614_hw2 publisher
+ros2 run nipe1783_hw2 publisher
 ``
 
 ```bash
@@ -30,6 +30,6 @@ cd ~/dev/CSCI_4302/hw2
 colcon build
 source /opt/ros/foxy/setup.bash
 source ~/dev/CSCI_4302/hw2/install/setup.bash
-ros2 run a108458614_hw2 subscriber
+ros2 run nipe1783_hw2 subscriber
 ``
 

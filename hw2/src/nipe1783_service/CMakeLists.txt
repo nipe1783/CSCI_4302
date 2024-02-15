@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(a108458614_service)
+project(nipe1783_service)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)

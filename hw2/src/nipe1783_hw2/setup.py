@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-package_name = 'a108458614_hw2'
+package_name = 'nipe1783_hw2'
 
 setup(
     name=package_name,

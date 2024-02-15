@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String, Float64
-from a108458614_service.srv import ProcessString
+from nipe1783_service.srv import ProcessString
 import time
 
 class StringReversalService(Node):
@@ -20,6 +20,7 @@ class StringReversalService(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    print("Starting service...")
     service = StringReversalService()
     rclpy.spin(service)
     rclpy.shutdown()
