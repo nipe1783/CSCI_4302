@@ -24,6 +24,8 @@ class Node:
         self.point = point # n-Dimensional point
         self.parent = parent # Parent node
         self.path_from_parent = [] # List of points along the way from the parent node (for visualization)
+        self.path_length = 0 # length of path from root to this node
+        self.children = [] # List of child nodes
 
 def get_nd_obstacle(state_bounds: np.ndarray) -> list:
     """
@@ -112,7 +114,6 @@ def visualize_2D_graph(state_bounds: np.ndarray, obstacles: list, nodes: list, g
         else:
             plt.plot(node.point[0], node.point[1], 'ro')
 
-
     if len(nodes) > 0:
         plt.plot(nodes[0].point[0], nodes[0].point[1], 'ko')
 
@@ -188,7 +189,7 @@ def test_random_rrt_goal(rrts, steer, filenum):
         starting_point = get_random_valid_vertex(validity_check, bounds, obstacles)
         goal_point = get_random_valid_vertex(validity_check, bounds, obstacles)
     for version, rrt in enumerate(rrts):
-        nodes = rrt(bounds, validity_check, starting_point, goal_point, steer, K, np.linalg.norm(bounds/10.))
+        nodes = rrt(bounds, validity_check, starting_point, goal_point, steer, K, np.linalg.norm(bounds/10.), obstacles)
         visualize_2D_graph(bounds, obstacles, nodes, goal_point, f'rrt{filenum}_goal_random_{version}.png')
 
 def test_non_holonomic_rrt(rrts, steer, filenum):
