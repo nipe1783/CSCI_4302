@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
-student_name = "My Name" # Set to your name
-GRAD = True  # Set to True if graduate student
+student_name = "Nicolas Perrault" # Set to your name
+GRAD = False  # Set to True if graduate student
 
 
 class TabularPolicy(object):
@@ -161,7 +161,38 @@ class GridworldSolver(object):
             #   Set v_i and p_i equal to v_i+1 and p_i+1 at the end of each loop
             
             # Call self.solver.set_policy/value_function with your final results 
-            raise NotImplementedError # Remove me
+            V = np.zeros(self.solver.num_states)
+            delta = float('inf')
+            theta = 1e-3
+            while delta > theta:
+                delta = 0
+                for s in range(self.solver.num_states):
+                    v = V[s]
+                    state_coord = self.solver.get_coordinates_from_state_index(s)
+                    action_values = np.zeros(self.env.num_actions)
+                    for a in range(self.env.num_actions):
+                        for probability, s_prime in self.env.T(state_coord, a):
+                            # print("current state: ", state_coord, "action: ", a, "next state: ", s_prime)
+                            next_state_index = self.solver.get_state_index_from_coordinates(s_prime)
+                            reward = self.env.R(state_coord, a, s_prime)
+                            # print("reward: ", reward)
+                            action_values[a] += probability * (reward + self.gamma * V[next_state_index])
+                    best_action_value = np.max(action_values)
+                    delta = max(delta, np.abs(v - best_action_value))
+                    V[s] = best_action_value
+            for s in range(self.solver.num_states):
+                state_coord = self.solver.get_coordinates_from_state_index(s)
+                action_values = np.zeros(self.env.num_actions)
+                for a in range(self.env.num_actions):
+                    for p, s_prime in self.env.T(state_coord, a):
+                        next_state_index = self.solver.get_state_index_from_coordinates(s_prime)
+                        reward = self.env.R(state_coord, a, s_prime)
+                        action_values[a] += p * (reward + self.gamma * V[next_state_index])
+                best_action = np.argmax(action_values)
+                self.solver.set_state_value(s, V[s])
+                self.solver.set_policy(s, np.eye(self.env.num_actions)[best_action])
+            self.solver.set_value_function(V)
+
         elif self._policy_type == 'max_ent_vi':
             # Implement max-ent value iteration
             # Remember to use self.temperature and self.eps here!
@@ -173,7 +204,7 @@ class GridworldSolver(object):
             # HINT: The default policy (self.solver.get_policy_function()) is randomly initialized. You can use that as the initial p_i.
 
             # Initialize your v_i and p_i here
-
+            V = np.zeros(self.solver.num_states)
             # Loop for your pre-specified iteration count (horizon)
             #   Create matrices for storing v_iplus1 and p_iplus1
             #   Implement policy iteration, remembering to separate your Evaluate and Improve steps!
@@ -184,7 +215,45 @@ class GridworldSolver(object):
             #   Add the cumulative reward from that evaluation to self.performance_history
 
             # Call self.solver.set_policy/value_function with your final results 
-            raise NotImplementedError # Remove me
+            max_iterations = 100
+            for i in range(max_iterations):
+                print(f"Starting Policy Iteration {i+1}")
+                while True:
+                    delta = 0
+                    for s in range(self.solver.num_states):
+                        v = V[s]
+                        state_coord = self.solver.get_coordinates_from_state_index(s)
+                        a = np.argmax(self.solver.get_policy(s))
+                        v_new = 0
+                        for probability, s_prime in self.env.T(state_coord, a):
+                            next_state_index = self.solver.get_state_index_from_coordinates(s_prime)
+                            reward = self.env.R(state_coord, a, s_prime)
+                            v_new += probability * (reward + self.gamma * V[next_state_index])
+                        delta = max(delta, abs(v - v_new))
+                        V[s] = v_new 
+                    print("delta: ", delta)
+                    if delta < self.eps: 
+                        break
+                policy_stable = True
+                for s in range(self.solver.num_states):
+                    old_action = np.argmax(self.solver.get_policy(s))
+                    state_coord = self.solver.get_coordinates_from_state_index(s)
+                    action_values = np.zeros(self.env.num_actions)
+                    for a in range(self.env.num_actions):
+                        for probability, s_prime in self.env.T(state_coord, a):
+                            next_state_index = self.solver.get_state_index_from_coordinates(s_prime)
+                            reward = self.env.R(state_coord, a, s_prime)
+                            action_values[a] += probability * (reward + self.gamma * V[next_state_index])
+                    best_action = np.argmax(action_values)
+                    if old_action != best_action:
+                        policy_stable = False
+                    self.solver.set_policy(s, np.eye(self.env.num_actions)[best_action])
+                self.solver.set_value_function(V)
+                reward = self.solve( None, False, 20)
+                print("reward: ", reward[0], "steps: ", reward[1])
+                self.performance_history.append(reward)
+
+
 
     def solve(self, start_state=None, visualize=False, max_steps=float('inf')):
         '''

@@ -13,8 +13,8 @@ import itertools
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
-student_name = "My Name" # Set to your name
-GRAD = True  # Set to True if graduate student
+student_name = "Nicolas Perrault" # Set to your name
+GRAD = False  # Set to True if graduate student
 
 
 class TabularPolicy(object):
@@ -153,7 +153,9 @@ class DiscretizedSolver(object):
 
         # Iterate over all state/action combinations
         # Call self.add_transition for each
-        raise NotImplementedError
+        for state_idx in range(self.solver.num_states):
+            for action_idx in range(self.env.action_space.n):
+                self.add_transition(state_idx, action_idx)
         
 
     def add_transition(self, state_idx, action_idx):
@@ -171,8 +173,13 @@ class DiscretizedSolver(object):
         # HINT: Keep in mind that we're setting T and R for our approximate, discretized MDP! You'll need to map the continuous state onto your discrete state space somehow.
 
         # Your code here. Remember to set_transition_function and set_reward_function on self.solver to store the values you compute!
-        raise NotImplementedError
-
+        # Get the continuous coordinates corresponding to the center of the current discrete state
+        self.env.state = self.get_coordinates_from_state_index(state_idx)
+        next_state, reward, done, info = self.env.step(action_idx)
+        next_state_idx = self.get_state_index_from_coordinates(next_state)
+        next_state = self.get_coordinates_from_state_index(next_state_idx)
+        self.solver.set_transition_function(state_idx, action_idx, next_state_idx, 1)
+        self.solver.set_reward_function(state_idx, action_idx, next_state_idx, reward)
 
     def get_discrete_state_probabilities(self, continuous_state_vector):
         '''
@@ -191,13 +198,41 @@ class DiscretizedSolver(object):
 
         if self._mode == 'nn':
             # Find the closest discrete state to continuous_state_vector
-            raise NotImplementedError
+            discrete_state_index = self.get_state_index_from_coordinates(continuous_state_vector)
+            return [(discrete_state_index, 1.0)]
         elif self._mode == 'linear':
             # Find the 4 discrete states that surround continuous_state_vector, and assign
             # probability inversely proportionate to their distance from it.
-            raise NotImplementedError
+            # Calculate the position of the continuous state relative to the bin sizes
+            state_position = (continuous_state_vector - self.state_lower_bound) / self.bin_sizes
+            
+            # Find the indices of the lower bounds of the bin that the state falls into
+            lower_bin_indices = np.floor(state_position).astype(int)
+            
+            # Calculate the distances of the state from the lower bounds
+            distances = state_position - lower_bin_indices
+            
+            # The weights should be proportional to the inverse of the distance
+            weights = 1 - distances
+            
+            # Get the index of the lower bound state
+            lower_state_idx = self.get_state_index_from_coordinates(self.state_lower_bound + lower_bin_indices * self.bin_sizes)
+            
+            # Compute the indices of the four corners and their weights
+            state_probabilities = []
+            for i in range(2):
+                for j in range(2):
+                    neighbor_bin_indices = lower_bin_indices.copy()
+                    neighbor_bin_indices[0] += i
+                    neighbor_bin_indices[1] += j
+                    weight = weights[0] if i == 0 else (1 - weights[0])
+                    weight *= weights[1] if j == 0 else (1 - weights[1])
+                    neighbor_state_idx = self.get_state_index_from_coordinates(self.state_lower_bound + neighbor_bin_indices * self.bin_sizes)
+                    state_probabilities.append((neighbor_state_idx, weight))
+                    
+            return state_probabilities
 
-    def compute_policy(self, max_iterations=10000):
+    def compute_policy(self, max_iterations=150):
         '''
         Compute a policy and store it in self.solver (type TabularPolicy) using Value Iteration for max_iterations iterations.
         '''
@@ -215,20 +250,79 @@ class DiscretizedSolver(object):
 
 
         # Remember to call self.solver.set_policy/value_function at the end!
-        raise NotImplementedError
+        print("MODE:" , self._mode)
+        V = np.zeros(self.solver.num_states)
+        V_prev = V.copy()
+        policy = np.zeros(self.solver.num_states, dtype=int)
+        theta = 1e-6
+        delta = 0
+        for iteration in range(max_iterations):
+            delta_prev = delta
+            delta = 0
+            for s in range(self.solver.num_states):
+                v = V[s]
+                action_values = np.zeros(self.env.action_space.n)
+                for a in range(self.env.action_space.n):
+                    self.env.reset()
+                    continuous_state = self.get_coordinates_from_state_index(s)
+                    self.env.state = continuous_state
+                    next_state, reward, done, _ = self.env.step(a)
+                    # next_state_idx = self.get_state_index_from_coordinates(next_state)
+                    state_probabilities = self.get_discrete_state_probabilities(next_state)
+                    for state_idx, prob in state_probabilities:
+                        action_values[a] += prob * (reward + self.gamma * V[state_idx])
+                best_action_value = np.max(action_values)
+                policy[s] = np.argmax(action_values)
+                delta = max(delta, np.abs(v - best_action_value))
+                V[s] = best_action_value
+            print("change in v:", delta_prev - delta)
+            if delta_prev - delta < theta and delta_prev - delta >= 0:
+                break
 
+            
+            for s in range(self.solver.num_states):
+                action_values = np.zeros(self.env.action_space.n)
+                for a in range(self.env.action_space.n):
+                    self.env.reset()
+                    continuous_state = self.get_coordinates_from_state_index(s)
+                    self.env.state = continuous_state
+                    next_state, reward, done, _ = self.env.step(a)
+                    state_probabilities = self.get_discrete_state_probabilities(next_state)
+                    for state_idx, prob in state_probabilities:
+                        action_values[a] += prob * (reward + self.gamma * V[state_idx])
+                best_action = np.argmax(action_values)
+                self.solver.set_state_value(s, V[s])
+                self.solver.set_policy(s, np.eye(self.env.action_space.n)[best_action])
+            cumulative_reward, steps = self.solve(False, 500)
+            self.performance_history.append(cumulative_reward)
+
+        for s in range(self.solver.num_states):
+            action_values = np.zeros(self.env.action_space.n)
+            for a in range(self.env.action_space.n):
+                self.env.reset()
+                continuous_state = self.get_coordinates_from_state_index(s)
+                self.env.state = continuous_state
+                next_state, reward, done, _ = self.env.step(a)
+                state_probabilities = self.get_discrete_state_probabilities(next_state)
+                for state_idx, prob in state_probabilities:
+                    action_values[a] += prob * (reward + self.gamma * V[state_idx])
+            best_action = np.argmax(action_values)
+            self.solver.set_state_value(s, V[s])
+            self.solver.set_policy(s, np.eye(self.env.action_space.n)[best_action])
+        self.solver.set_value_function(V)
+        reward = self.solve( False, 150)
+        print("reward: ", reward[0], "steps: ", reward[1])
+        self.performance_history.append(reward)
 
 
 
     def get_state_index_from_coordinates(self, continuous_state_vector):
-        '''
-        Returns the discrete state index of a given continuous state vector, 
-        using the number of bins provided at instantiation
-        '''
-        bin_sizes = (self.state_upper_bound - self.state_lower_bound) / self._num_bins
-        bin_location = ((continuous_state_vector - self.state_lower_bound) / bin_sizes).astype(int)
-
-        return bin_location[0] * self._num_bins + bin_location[1]
+        # Compute bin indices for each dimension
+        bin_indices = (continuous_state_vector - self.state_lower_bound) / self.bin_sizes
+        bin_indices = np.floor(bin_indices).astype(int)
+        bin_indices = np.clip(bin_indices, 0, self._num_bins - 1)
+        state_index = bin_indices[0] * self._num_bins + bin_indices[1]
+        return state_index
 
     def get_coordinates_from_state_index(self, state_idx):
         '''
@@ -271,11 +365,16 @@ class DiscretizedSolver(object):
                 action = 0 # TODO: Replace this line!
                 raise NotImplementedError
             elif self._mode == 'nn':
-                action = 0 # TODO: Replace this line!
-                raise NotImplementedError
+                discrete_state_probabilities = self.get_discrete_state_probabilities(cur_state)
+                nearest_neighbor_state_index, _ = discrete_state_probabilities[0]
+                action = self.solver.get_action(nearest_neighbor_state_index)
             elif self._mode == 'linear':
-                action = 0 # TODO: Replace this line!
-                raise NotImplementedError
+                state_probabilities = self.get_discrete_state_probabilities(cur_state)
+                action_values = np.zeros(self.env.action_space.n)
+                for state_idx, prob in state_probabilities:
+                    action_probabilities = self.solver.get_policy(state_idx)
+                    action_values += prob * action_probabilities
+                action = np.argmax(action_values)
             else:
                 action = self.solver.get_action(self.get_state_index_from_coordinates(cur_state))
 
